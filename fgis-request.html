@@ -1,0 +1,369 @@
+<b>1. Для успешной работы Хрома (скрипта) нужно запускать его с отключенной проверкой кросдоменных запросов:</b><br>
+<tt>Windows+R: chrome.exe --user-data-dir="C://Chrome dev session" --disable-web-security</tt><br><br>
+<b>2. Для сохранения отчётов о поверки нужно в настройках браузера Выключить "Всегда указывать место для скачивания"</b>
+
+<br><br>
+<h3>Проверка весов на дату поверки</h3>
+
+<div style="display:inline-flex" class="bold">
+	<div>
+		<form id="formSer">Заводские номера (построчно):<br><textarea id="serials" rows="6" cols="40">17420738</textarea>
+		<br>Поверитель содержит (через зпт): <input type="text" id="pover" value="алтайский,измеритель,СКЕЙЛ">
+		<br>Наименование содержит: <input type="text" id="naimen" value="весы"><br>
+		Сохранять отчёты в файлы: <input type="checkbox" id="save" value=""><br><br>
+		<input type="submit" name="send" value="Проверить даты по заводскому номеру"></form>
+	</div>
+		
+</div>
+
+<div class="divTable" style="border: 1px solid #000; margin-top:40px">
+	<div class="divTableBody" id="table">
+		<div class="divTableRow" class="bold">
+			<div class="divTableCell" >Наименование</div>
+			<div class="divTableCell" >Модификация</div>
+			<div class="divTableCell" >Серийник</div>
+			<div class="divTableCell">Поверка до</div>
+			<div class="divTableCell" >Номер свидетельства <br>(кликабельно)</div>
+			<div class="divTableCell" >Отчёт сохранён</div>
+		</div>
+	</div>
+</div>
+<br><small>- в Excel удобно вставлять через блокнот<br>- В случае ошибок <u>504 Gateway Time-out</u> - сервис fgis.gost.ru лежит. Лучшще всего запросы осуществлять утром или поздно вечером.</small>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/1.3.8/FileSaver.js"></script>
+
+<script>
+function createReport(urlOtch, index) {
+	//console.log(urlOtch);return;
+	
+	var jqxhr = $.ajax({
+		 statusCode: {
+			504: function() {
+			$('#'+index+'-otch').text('Gateway Time-out');
+		}},
+		
+		url: urlOtch })
+	  .done(function(jsonObj) {
+		var $clone = $('#message-template').html();
+		//console.log(jsonObj);//return;
+		$clone = $clone.replace("{{mitypeNumber}}", jsonObj.result.miInfo.singleMI.mitypeNumber)
+		.replace("{{mitypeType}}", jsonObj.result.miInfo.singleMI.mitypeType)
+		.replace("{{mitypeTitle}}", jsonObj.result.miInfo.singleMI.mitypeTitle)
+		.replace("{{manufactureYear}}", jsonObj.result.miInfo.singleMI.manufactureYear)
+		.replace("{{manufactureNum}}", jsonObj.result.miInfo.singleMI.manufactureNum)
+		.replace("{{modification}}", jsonObj.result.miInfo.singleMI.modification)
+		.replace("{{organization}}", jsonObj.result.vriInfo.organization)
+		.replace("{{vrfDate}}", jsonObj.result.vriInfo.vrfDate)
+		.replace("{{validDate}}", jsonObj.result.vriInfo.validDate)
+		.replace("{{certNum}}", jsonObj.result.vriInfo.applicable.certNum)
+		
+		var blob = new Blob([$clone], {type: "text/html;charset=utf-8"});
+		saveAs(blob, jsonObj.result.miInfo.singleMI.manufactureNum+".html");
+		
+		$('#'+index+'-otch').text(jsonObj.result.miInfo.singleMI.manufactureNum+".html");
+		
+		return false;
+	  })
+	  .fail(function() {
+		$('#'+index+'-otch').text('fail');
+	  });
+	
+	
+	return false;
+}
+
+
+
+
+
+/*doc.addFont("test/reference/PTSans.ttf", "PTSans", "normal");
+doc.setFont("PTSans"); // set font
+doc.setFontSize(10);
+*/
+
+$("#formSer" ).on( "submit", function( e ) {
+	e.preventDefault();
+	
+	
+	$("#table").empty();
+	$('#table').append('<div class="divTableRow" class="bold"><div class="divTableCell">Наименование</div><div class="divTableCell">Модификация</div><div class="divTableCell">Серийник</div><div class="divTableCell">Поверка до</div><div class="divTableCell">Номер свидетельства <br>(кликабельно)</div><div class="divTableCell">Отчёт сохранён</div></div>');
+	
+	var pover = $("#pover").val().trim().split(',');
+	var naimen = $("#naimen").val().trim();
+	serials = $('#serials').val().split('\n');
+	Object.keys(serials).forEach(k => serials[k] = serials[k].trim());
+	
+	requestGet(serials, 0, 1, pover, naimen);
+});
+
+
+
+function requestGet(arr, index, type, pover, naimen) {
+  if (index < 0 || index >= arr.length)
+    return;
+
+if (type == 1)
+{
+
+	$('#table').append('<div class="divTableRow" id="'+index+'">'+
+	'<div class="divTableCell" id="'+index+'-mititle"><div id="LoadingImage" class="'+index+'-LoadingImage element" ></div></div>'+
+	'<div class="divTableCell" id="'+index+'-modification"><div id="LoadingImage" class="'+index+'-LoadingImage element" ></div></div>'+
+	'<div class="divTableCell">'+arr[index]+'</div>'+
+	'<div class="divTableCell" id="'+index+'-date"><div id="LoadingImage" class="'+index+'-LoadingImage element" ></div></div>'+
+	'<div class="divTableCell hand" id="'+index+'-docnum"><div id="LoadingImage" class="'+index+'-LoadingImage element" ></div></div>'+
+	'<div class="divTableCell" id="'+index+'-otch"><div id="LoadingImage" class="'+index+'-LoadingImage element" ></div></div></div>');
+
+	if (arr[index] == '----')
+	{
+		$("."+index+"-LoadingImage").css("dysplay", "none");
+		
+		$('#'+index+'-mititle').text('---');
+		$('#'+index+'-modification').text('---');
+		$('#'+index+'-date').text('---');
+		$('#'+index+'-docnum').text('---');
+		$('#'+index+'-otch').text('---');
+		setTimeout(requestGet(arr, index + 1, type, pover, naimen),4000);
+		
+		return;
+	}
+	
+	//console.log(Object.keys(pover).length);return;
+	
+	
+	$.ajax({
+		 statusCode: {
+			504: function() {
+			$('#'+index+'-mititle').text('Gateway Time-out');
+			$("."+index+"-LoadingImage").css("dysplay", "none");
+			$('#'+index+'-mititle').text('---');
+			$('#'+index+'-modification').text('---');
+			$('#'+index+'-date').text('---');
+			$('#'+index+'-docnum').text('---');
+			
+		}},
+		url:'https://fgis.gost.ru/fundmetrology/cm/xcdb/vri/select?fq=mi.number:*'+arr[index]+'*&q=*&fl=vri_id,org_title,mi.mitnumber,mi.mititle,mi.mitype,mi.modification,mi.number,verification_date,valid_date,applicability,result_docnum,sticker_num&sort=verification_date+desc,org_title+asc&rows=9000&start=0',
+		type: 'GET',
+		success: (result) => {
+		requestGet(arr, index + 1, type, pover, naimen);
+		//console.log(result);
+		
+		
+		
+		  $.each(result["response"]["docs"], function (i, currProgram, ) {
+			  
+			if (currProgram["mi.mititle"].toLowerCase().includes(naimen.toLowerCase()) && searchInObj(currProgram["org_title"], pover) && (currProgram["mi.number"] == arr[index] || currProgram["mi.number"] == 'N'+arr[index]))
+			{
+				//console.log(result);return;
+				
+				$('#'+index+'-mititle').text(currProgram["mi.mititle"]);
+				$('#'+index+'-modification').text(currProgram["mi.modification"]);
+				
+				$('#'+index+'-date').text(moment(currProgram["valid_date"]).format('DD.MM.YYYY'));
+				$('#'+index+'-docnum').text(currProgram["result_docnum"]);
+				
+				$('#'+index+'-docnum').attr("onclick", "window.open('https://fgis.gost.ru/fundmetrology/cm/results/"+currProgram["vri_id"]+"', 'new_window')");
+				
+				if ($("#save").is(":checked"))
+					createReport("https://fgis.gost.ru/fundmetrology/cm/iaux/vri/"+currProgram["vri_id"], index);
+				else
+					$('#'+index+'-otch').text('---');
+				return false;
+			}
+			else
+			{
+				$("."+index+"-LoadingImage").css("dysplay", "none");
+				$('#'+index+'-mititle').text('---');
+				$('#'+index+'-modification').text('---');
+				$('#'+index+'-date').text('---');
+				$('#'+index+'-docnum').text('---');
+			}
+		});
+			if(Object.keys(result["response"]["docs"]).length == 0)
+			{
+				$('#'+index+'-mititle').text('---');
+				$('#'+index+'-modification').text('---');
+				$("."+index+"-LoadingImage").css("dysplay", "none");
+				$('#'+index+'-date').text('---');
+				$('#'+index+'-docnum').text('---');
+			}
+		}
+	  });
+}
+
+}
+
+
+function searchInObj(str, obj){
+  for(var key in obj) {
+     if(str.toLowerCase().indexOf(obj[key].toLowerCase())!=-1) return true;
+  } return false
+}
+ 
+
+</script>
+
+
+
+
+<style>
+.hand {cursor:pointer}
+.element {
+	min-width: 32px;
+	min-height: 32px;
+	background-repeat: no-repeat;
+	background-image: url(data:image/gif;base64,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);
+}
+
+.bold{font-weight:bold}
+textarea{margin:0 10px 10px 0}
+#LoadingImage{
+    text-align: center;
+}
+#LoadingImage img{
+width:20px;
+}
+	
+.divTable{
+	display: table;
+	width: 400px;
+}
+.divTableRow {
+	display: table-row;
+}
+.divTableHeading {
+	background-color: #EEE;
+	display: table-header-group;
+}
+.divTableCell, .divTableHead {
+	border: 1px solid #999999;
+	display: table-cell;
+	padding: 3px 10px;
+	white-space: nowrap;
+}
+.divTableHeading {
+	background-color: #EEE;
+	display: table-header-group;
+	font-weight: bold;
+}
+.divTableFoot {
+	background-color: #EEE;
+	display: table-footer-group;
+	font-weight: bold;
+}
+.divTableBody {
+	display: table-row-group;
+}
+	
+</style>
+
+
+
+
+<script id="message-template" type = "text/template">
+
+<style>
+.table{width:100%;margin-bottom:1rem;color:#212529 }.table td,.table th{padding:.75rem;vertical-align:top;border-top:1px solid #dee2e6 }.table thead th{vertical-align:bottom;border-bottom:2px solid #dee2e6 }.table tbody+tbody{border-top:2px solid #dee2e6 }.table-sm td,.table-sm th{padding:.3rem }.table-bordered,.table-bordered td,.table-bordered th{border:1px solid #dee2e6 }.table-bordered thead td,.table-bordered thead th{border-bottom-width:2px }.table-borderless tbody+tbody,.table-borderless td,.table-borderless th,.table-borderless thead th{border:0 }.table-striped tbody tr:nth-of-type(odd){background-color:rgba(0,0,0,.05) }.table-hover tbody tr:hover{color:#212529;background-color:rgba(0,0,0,.075) }.table-primary,.table-primary>td,.table-primary>th{background-color:#d1e0e5 }.table-primary tbody+tbody,.table-primary td,.table-primary th,.table-primary thead th{border-color:#a9c5ce }.table-hover .table-primary:hover,.table-hover .table-primary:hover>td,.table-hover .table-primary:hover>th{background-color:#c1d5dc }.table-secondary,.table-secondary>td,.table-secondary>th{background-color:#d6d8db }.table-secondary tbody+tbody,.table-secondary td,.table-secondary th,.table-secondary thead th{border-color:#b3b7bb }.table-hover .table-secondary:hover,.table-hover .table-secondary:hover>td,.table-hover .table-secondary:hover>th{background-color:#c8cbcf }.table-success,.table-success>td,.table-success>th{background-color:#c3e6cb }.table-success tbody+tbody,.table-success td,.table-success th,.table-success thead th{border-color:#8fd19e }.table-hover .table-success:hover,.table-hover .table-success:hover>td,.table-hover .table-success:hover>th{background-color:#b1dfbb }.table-info,.table-info>td,.table-info>th{background-color:#bee5eb }.table-info tbody+tbody,.table-info td,.table-info th,.table-info thead th{border-color:#86cfda }.table-hover .table-info:hover,.table-hover .table-info:hover>td,.table-hover .table-info:hover>th{background-color:#abdde5 }.table-warning,.table-warning>td,.table-warning>th{background-color:#ffeeba }.table-warning tbody+tbody,.table-warning td,.table-warning th,.table-warning thead th{border-color:#ffdf7e }.table-hover .table-warning:hover,.table-hover .table-warning:hover>td,.table-hover .table-warning:hover>th{background-color:#ffe8a1 }.table-danger,.table-danger>td,.table-danger>th{background-color:#f5c6cb }.table-danger tbody+tbody,.table-danger td,.table-danger th,.table-danger thead th{border-color:#ed969e }.table-hover .table-danger:hover,.table-hover .table-danger:hover>td,.table-hover .table-danger:hover>th{background-color:#f1b0b7 }.table-light,.table-light>td,.table-light>th{background-color:#f6f7f8 }.table-light tbody+tbody,.table-light td,.table-light th,.table-light thead th{border-color:#eef0f2 }.table-hover .table-light:hover,.table-hover .table-light:hover>td,.table-hover .table-light:hover>th{background-color:#e8eaed }.table-dark,.table-dark>td,.table-dark>th{background-color:#c6c8ca }.table-dark tbody+tbody,.table-dark td,.table-dark th,.table-dark thead th{border-color:#95999c }.table-hover .table-dark:hover,.table-hover .table-dark:hover>td,.table-hover .table-dark:hover>th{background-color:#b9bbbe }.table-active,.table-active>td,.table-active>th,.table-hover .table-active:hover,.table-hover .table-active:hover>td,.table-hover .table-active:hover>th{background-color:rgba(0,0,0,.075) }.table .thead-dark th{color:#fff;background-color:#343a40;border-color:#454d55 }.table .thead-light th{color:#495057;background-color:#e9ecef;border-color:#dee2e6 }.table-dark{color:#fff;background-color:#343a40 }.table-dark td,.table-dark th,.table-dark thead th{border-color:#454d55 }.table-dark.table-bordered{border:0 }.table-dark.table-striped tbody tr:nth-of-type(odd){background-color:hsla(0,0%,100%,.05) }.table-dark.table-hover tbody tr:hover{color:#fff;background-color:hsla(0,0%,100%,.075) }
+</style>
+
+<div  style="font-family: PTSans;">
+       <div  class="content">
+        <div  class="container-fluid">
+          <div  class="row">
+            <div  class="col-md-1"></div>
+            <div  class="col-md-34 col-sm-36 overlay-wrapper">
+              <div >
+                <h3 >Сведения о результатах поверки СИ</h3>
+                <div  class="table-responsive data-data">
+                  <table  class="table table-striped table-hover table-2columns">
+                    <tbody >
+                      <tr  valign="top">
+                        <td >Регистрационный номер типа СИ</td>
+                        <td data="singleMI" dataType="mitypeNumber">{{mitypeNumber}}</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Тип СИ</td>
+                        <td data="singleMI" dataType="mitypeType">{{mitypeType}}</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Наименование типа СИ</td>
+                        <td data="singleMI" dataType="mitypeTitle">{{mitypeTitle}}</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Заводской номер СИ</td>
+                        <td data="singleMI" dataType="manufactureNum">{{manufactureNum}}</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Год выпуска СИ</td>
+                        <td data="singleMI" dataType="manufactureYear">{{manufactureYear}}</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Модификация СИ</td>
+                        <td data="singleMI" dataType="modification">{{modification}}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div >
+                <h3 >Сведения о поверке</h3>
+                <div  class="table-responsive data-data">
+                  <table  class="table table-striped table-hover table-2columns">
+                    <tbody >
+                      <tr  valign="top">
+                        <td >Наименование организации-поверителя</td>
+                        <td data="vriInfo" dataType="organization">{{organization}}</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Условный шифр знака поверки</td>
+                        <td data="vriInfo" dataType="signCipher">АТ</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Владелец СИ</td>
+                        <td data="vriInfo" dataType="miOwner">Юридическое лицо</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Тип поверки</td>
+                        <td>Периодическая</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Дата поверки СИ</td>
+                        <td data="vriInfo" dataType="vrfDate">{{vrfDate}}</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Поверка действительна до</td>
+                        <td data="vriInfo" dataType="validDate">{{validDate}}</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Наименование документа, на основании которого выполнена поверка</td>
+                        <td data="vriInfo" dataType="docTitle">ГОСТ OIML R 76-1-2011 ГСИ. Весы неавтоматического действия. Часть 1. Метрологические и технические требования. Испытания</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >СИ пригодно</td>
+                        <td data="vriInfo" dataType="">Да</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Номер свидетельства</td>
+                        <td data="vriInfo" dataType="certNum">{{certNum}}</td>
+                      </tr>
+                      <!---->
+                      <tr  valign="top">
+                        <td >Знак поверки в паспорте</td>
+                        <td data="vriInfo" dataType="">Нет</td>
+                      </tr>
+                      <tr  valign="top">
+                        <td >Знак поверки на СИ</td>
+                        <td data="vriInfo" dataType="">Да</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+</script>
