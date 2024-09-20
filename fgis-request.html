@@ -43,7 +43,7 @@ function createReport(urlOtch, index) {
 			504: function() {
 			$('#'+index+'-otch').text('Gateway Time-out');
 		}},
-		timeout: 10000,
+		//timeout: 10000,
 		url: urlOtch })
 	  .done(function(jsonObj) {
 		var $clone = $('#message-template').html();
@@ -143,7 +143,7 @@ if (type == 1)
 			$('#'+index+'-docnum').text('---');
 			
 		}},
-		timeout: 10000,
+		//timeout: 10000,
 		url:'https://fgis.gost.ru/fundmetrology/cm/xcdb/vri/select?fq=mi.number:*'+arr[index]+'*&q=*&fl=vri_id,org_title,mi.mitnumber,mi.mititle,mi.mitype,mi.modification,mi.number,verification_date,valid_date,applicability,result_docnum,sticker_num&sort=verification_date+desc,org_title+asc&rows=9000&start=0',
 		type: 'GET',
 		success: (result) => {
